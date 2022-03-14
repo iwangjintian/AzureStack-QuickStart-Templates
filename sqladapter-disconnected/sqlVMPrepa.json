@@ -1,0 +1,77 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "defaultValue": "localadmin",
+            "type": "String",
+            "metadata": {
+                "description": "The local Administrator username on the Virtual Machine. Limit 64 characters."
+            }
+        },
+        "adminPassword": {
+            "defaultValue": "[concat('Subscription#',substring(resourcegroup().id,15,36))]",
+            "type": "SecureString",
+            "metadata": {
+                "description": "The local Administrator password on the Virtual Machine. Limit 64 characters. Default value is subscription id"
+            }
+        },
+        "sqlInstallationISOUri": {
+            "type": "String",
+            "metadata": {
+                "description": "The Uri to the SQL Server installation ISO."
+            }
+        },
+        "vmName": {
+            "defaultValue": "[substring(concat('sql', uniqueString(resourceGroup().id)),0,12)]",
+            "type": "String",
+            "metadata": {
+                "description": "The name of the Virtual Machine. Limit 15 characters. (Reference: https://support.microsoft.com/en-us/kb/909264)"
+            }
+        },
+        "deploySqlStandaloneModulesURL": {
+            "type": "String",
+            "metadata": {
+                "description": "The location of resources that the script is dependent on such as linked templates and DSC modules"
+            }
+        }
+    },
+    "variables": {
+        "deploySqlStandaloneConfigurationFunction": "deploySqlStandalone_NonDomain.ps1\\deploySqlStandalone"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vmName'), '/sqlVMPrepare')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.Powershell",
+                "type": "DSC",
+                "typeHandlerVersion": "2.8",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {
+                    "modulesUrl": "[parameters('deploySqlStandaloneModulesURL')]",
+                    "configurationFunction": "[variables('deploySqlStandaloneConfigurationFunction')]",
+                    "properties": {
+                        "sqlInstallationISOUri": "[parameters('sqlInstallationISOUri')]",
+                        "adminCreds": {
+                            "userName": "[parameters('adminUsername')]",
+                            "password": "PrivateSettingsRef:adminPassword"
+                        },
+                        "sqlServiceCreds": {
+                            "userName": "sa",
+                            "password": "PrivateSettingsRef:sqlServerServiceAccountPassword"
+                        }
+                    }
+                },
+                "protectedSettings": {
+                    "items": {
+                        "adminPassword": "[parameters('adminPassword')]",
+                        "sqlServerServiceAccountPassword": "[parameters('adminPassword')]"
+                    }
+                }
+            }
+        }
+    ]
+}
